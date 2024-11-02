@@ -27,7 +27,7 @@ export class GameClientState {
 		});
 	}
 
-	send(action: string, message: any) {
+	send(action: string, message?: any) {
 		if (this.sock) {
 			console.log('Sending message', action, message);
 			this.sock.send(

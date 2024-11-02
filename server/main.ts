@@ -139,6 +139,9 @@ function handleGameMessage(playerId: string, message: GameMessage) {
 		case 'game-action':
 			handleGameAction(player, message.action);
 			break;
+		case 'leave-room':
+			handleLeaveRoom(player, message.message);
+			break;
 		default:
 			console.log(`Unknown message type: ${message.action}`);
 			broadcastToRoom(player.room!, {
@@ -186,6 +189,26 @@ function handleJoinRoom(player: Player, roomId: string) {
 		type: 'player_joined_room',
 		playerId: player.id
 	});
+}
+
+function handleLeaveRoom(player: Player, roomId: string) {
+	if (!player.room) return;
+
+	const room = gameState.rooms.get(player.room);
+	if (!room) return;
+
+	room.players.delete(player.id);
+	player.room = undefined;
+
+	// Clean up empty rooms
+	if (room.players.size === 0) {
+		gameState.rooms.delete(roomId);
+	} else {
+		broadcastToRoom(roomId, {
+			type: 'player_left',
+			playerId: player.id
+		});
+	}
 }
 
 function handleGameAction(player: Player, action: any) {
