@@ -1,5 +1,8 @@
-deno task start
+```
+npm install
+npm run dev
+```
 
-Steps:
-- deno install -A jsr:@deno/deployctl
-- deployctl deploy
+```
+open http://localhost:3000
+```

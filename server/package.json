@@ -1,0 +1,19 @@
+{
+	"name": "server",
+	"type": "module",
+	"scripts": {
+		"dev": "tsx watch src/index.ts"
+	},
+	"dependencies": {
+		"@hono/node-server": "^1.13.4",
+		"dotenv": "^16.4.5",
+		"hono": "^4.6.8",
+		"socket.io": "^4.8.1"
+	},
+	"devDependencies": {
+		"@types/jsonwebtoken": "^9.0.7",
+		"@types/node": "^20.11.17",
+		"jsonwebtoken": "^9.0.2",
+		"tsx": "^4.7.1"
+	}
+}

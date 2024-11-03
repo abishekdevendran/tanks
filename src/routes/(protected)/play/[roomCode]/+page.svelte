@@ -14,34 +14,33 @@
 	const Messages = {
 		JOIN_ROOM: 'join-room',
 		GAME_ACTION: 'game-action',
+		READY: 'ready',
+		UNREADY: 'unready',
 		LEAVE_ROOM: 'leave-room'
 	} as const;
 
+	//Use $effect.once for initialization
 	$effect(() => {
-		if (!GS.sock) return;
+		if (!GS.isConnected) return;
 		GS.send(Messages.JOIN_ROOM, data.roomCode);
 	});
 
 	onDestroy(() => {
-		if (!GS.sock) return;
+		if (!GS.socket?.connected) return;
 		GS.send(Messages.LEAVE_ROOM, data.roomCode);
 	});
 
-	let players = $state([
-		{ id: 1, name: 'Player 1', ready: false },
-		{ id: 2, name: 'Player 2', ready: false },
-		{ id: 3, name: 'Player 3', ready: false },
-		{ id: 4, name: 'Player 4', ready: false }
-	]);
-
-	let currentPlayer = $state({ id: 1, name: 'Player 1', ready: false });
-
 	function toggleReady() {
-		currentPlayer.ready = !currentPlayer.ready;
-		players = players.map((p) => (p.id === currentPlayer.id ? currentPlayer : p));
+		if (currentPlayer?.isReady) {
+			GS.send(Messages.UNREADY);
+		} else {
+			GS.send(Messages.READY);
+		}
 	}
 
-	let allPlayersReady = $derived(players.every((p) => p.ready));
+	let allPlayersReady = $derived(GS.players.every((p) => p.isReady));
+	let currentPlayer = $derived(GS.players.find((p) => p.id === data.user.id));
+	$inspect(currentPlayer);
 </script>
 
 <main>
@@ -51,20 +50,23 @@
 				<CardTitle class="text-center text-2xl font-bold">Tank Battle Lobby</CardTitle>
 			</CardHeader>
 			<CardContent>
-				<div class="grid sm:grid-cols-2 gap-4">
-					{#each players as player (player.id)}
+				{#each GS.messages as message}
+					<div>{message}</div>
+				{/each}
+				<div class="grid gap-4 sm:grid-cols-2">
+					{#each GS.players as player (player.id)}
 						<div
-							class="flex items-center space-x-4 rounded-lg p-2 {player.ready
+							class="flex items-center space-x-4 rounded-lg p-2 {player.isReady
 								? 'bg-green-100'
 								: 'bg-gray-100'}"
 						>
 							<Avatar>
-								<AvatarImage src="/images/user.png" alt={player.name} />
-								<AvatarFallback>{player.name[0]}</AvatarFallback>
+								<AvatarImage src="/images/user.png" alt={player.userName} />
+								<AvatarFallback>{player.userName[0]}</AvatarFallback>
 							</Avatar>
 							<div class="flex-1">
-								<p class="font-medium">{player.name}</p>
-								<p class="text-sm text-gray-500">{player.ready ? 'Ready' : 'Not Ready'}</p>
+								<p class="font-medium">{player.userName}</p>
+								<p class="text-sm text-gray-500">{player.isReady ? 'isReady' : 'Not isReady'}</p>
 							</div>
 						</div>
 					{/each}
@@ -74,13 +76,13 @@
 			<CardFooter class="mt-4 flex items-center justify-between">
 				<div class="flex space-x-2 text-sm text-gray-500">
 					<span class="flex items-center"
-						><Users class="mr-1 h-4 w-4" /> {players.length} Players</span
+						><Users class="mr-1 h-4 w-4" /> {GS.players.length} Players</span
 					>
 					<span class="flex items-center"><Swords class="mr-1 h-4 w-4" /> Battle Mode</span>
 					<span class="flex items-center"><Trophy class="mr-1 h-4 w-4" /> Ranked</span>
 				</div>
-				<Button onclick={toggleReady} variant={currentPlayer.ready ? 'destructive' : 'default'}>
-					{currentPlayer.ready ? 'Unready' : 'Ready'}
+				<Button onclick={toggleReady} variant={currentPlayer?.isReady ? 'destructive' : 'default'}>
+					{currentPlayer?.isReady ? 'Unready' : 'Ready'}
 				</Button>
 			</CardFooter>
 		</Card>
