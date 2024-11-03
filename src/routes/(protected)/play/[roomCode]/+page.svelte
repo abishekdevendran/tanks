@@ -7,27 +7,46 @@
 	import { Avatar, AvatarFallback, AvatarImage } from '$lib/components/ui/avatar';
 	import { Separator } from '$lib/components/ui/separator';
 	import { Users, Swords, Trophy } from 'lucide-svelte';
+	import { goto } from '$app/navigation';
 
 	let { data }: { data: PageData } = $props();
+	let roomCode = $state(data.roomCode); // Capture roomCode when it's available
+	// If data changes, update roomCode
+	$effect(() => {
+		if (data.roomCode) {
+			roomCode = data.roomCode;
+		}
+	});
 	const GS = getGameClient();
 
 	const Messages = {
 		JOIN_ROOM: 'join-room',
-		GAME_ACTION: 'game-action',
+		GAME_ACTION: 'move',
 		READY: 'ready',
 		UNREADY: 'unready',
 		LEAVE_ROOM: 'leave-room'
 	} as const;
 
+	const ReturnMessages = {
+		START_GAME: 'start-game'
+	} as const;
+
 	//Use $effect.once for initialization
 	$effect(() => {
 		if (!GS.isConnected) return;
-		GS.send(Messages.JOIN_ROOM, data.roomCode);
+		GS.send(Messages.JOIN_ROOM, roomCode);
+	});
+
+	$effect(() => {
+		if (!GS.socket || !GS.isConnected) return;
+		function gameHandler() {
+			goto(`/play/${roomCode}/fun`);
+		}
+		GS.socket.on(ReturnMessages.START_GAME, gameHandler);
 	});
 
 	onDestroy(() => {
-		if (!GS.socket?.connected) return;
-		GS.send(Messages.LEAVE_ROOM, data.roomCode);
+		GS.clearRoomData(roomCode);
 	});
 
 	function toggleReady() {
@@ -38,9 +57,8 @@
 		}
 	}
 
-	let allPlayersReady = $derived(GS.players.every((p) => p.isReady));
+	let allPlayersReady = $derived(GS.players.length > 1 && GS.players.every((p) => p.isReady));
 	let currentPlayer = $derived(GS.players.find((p) => p.id === data.user.id));
-	$inspect(currentPlayer);
 </script>
 
 <main>

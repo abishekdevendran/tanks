@@ -16,6 +16,14 @@ type MESSAGE_DATA =
 			players: player[];
 	  }
 	| {
+			type: 'room-join';
+			player: player;
+	  }
+	| {
+			type: 'room-leave';
+			player: player;
+	  }
+	| {
 			type: 'message';
 			from: string;
 			message: string;
@@ -104,6 +112,16 @@ export class GameClientState {
 				case 'room-populate':
 					this.players = data.players;
 					break;
+				case 'room-join':
+					if (this.players.find((p) => p.id === data.player.id)) return;
+					this.players = [...this.players, data.player];
+					toast.success(`${data.player.userName} joined the room!`);
+					break;
+				case 'room-leave':
+					if (!this.players.find((p) => p.id === data.player.id)) return;
+					this.players = this.players.filter((p) => p.id !== data.player.id);
+					toast.error(`${data.player.userName} left the room!`);
+					break;
 				case 'ready':
 					this.players = this.players.map((p) => (p.id === data.user.id ? data.user : p));
 					break;
@@ -126,6 +144,13 @@ export class GameClientState {
 			console.error('Tried to send message while disconnected');
 			return false;
 		}
+	}
+
+	clearRoomData(roomCode: string) {
+		this.players = [];
+		this.messages = [];
+		if (!this.socket?.connected) return;
+		this.send('leave-room', roomCode);
 	}
 }
 

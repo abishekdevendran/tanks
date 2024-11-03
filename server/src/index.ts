@@ -8,9 +8,7 @@ import type { Server as HTTPServer } from 'node:http';
 import 'dotenv/config';
 import jwt from 'jsonwebtoken';
 const { sign, verify } = jwt;
-
 const SECRET = process.env.JWT_SECRET || 'tanksAreFun';
-
 const app = new Hono();
 
 app.use(logger());
@@ -35,7 +33,8 @@ const io = new Server(httpServer as HTTPServer, {
 	cors: {
 		origin: '*',
 		methods: ['GET', 'POST']
-	}
+	},
+	connectionStateRecovery: {}
 });
 
 // auth middleware
@@ -58,6 +57,13 @@ io.use((socket, next) => {
 
 io.on('connection', (socket) => {
 	console.log('connected: ', socket.data.user);
+	socket.on('disconnecting', (reason) => {
+		// find every room the user is in and notify the other users
+		const rooms = Array.from(socket.rooms).filter((r) => r !== socket.id);
+		rooms.forEach((room) => {
+			socket.to(room).emit('message', { type: 'room-leave', player: socket.data.user });
+		});
+	});
 	socket.on('disconnect', () => {
 		console.log('user disconnected');
 	});
@@ -72,13 +78,20 @@ io.on('connection', (socket) => {
 		// get a list of users in the room
 		const usersInRoom = io.sockets.adapter.rooms.get(room);
 		if (!usersInRoom) return;
-		console.log('users in room:', usersInRoom);
 		// send each of their socket.data.user to the client
 		const players = Array.from(usersInRoom).map(
 			(socketId) => io.sockets.sockets.get(socketId)?.data.user
 		);
 		console.log('players:', players);
 		socket.emit('message', { type: 'room-populate', players });
+		// send everyone else the new user
+		socket.to(room).emit('message', { type: 'room-join', player: socket.data.user });
+	});
+	socket.on('leave-room', (room) => {
+		console.log('leaving room:', room);
+		socket.leave(room);
+		// send everyone else the user that left
+		socket.to(room).emit('message', { type: 'room-leave', player: socket.data.user });
 	});
 	socket.on('ready', () => {
 		socket.data.user.isReady = true;
@@ -91,9 +104,9 @@ io.on('connection', (socket) => {
 		const players = Array.from(usersInRoom).map(
 			(socketId) => io.sockets.sockets.get(socketId)?.data.user
 		);
-		const allReady = players.every((player) => player.isReady);
+		const allReady = players.every((player) => player.isReady) && players.length > 1;
 		if (allReady) {
-			io.to(room).emit('start-game');
+			io.to(room).emit('message', { type: 'start-game' });
 		}
 	});
 	socket.on('unready', () => {
