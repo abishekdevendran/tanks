@@ -14,5 +14,5 @@
 <svelte:head>
 	<title>{title}</title>
 </svelte:head>
-<Toaster />
+<Toaster position="top-center" richColors />
 {@render children()}

@@ -15,26 +15,37 @@
 	import { toast } from 'svelte-sonner';
 	import Separator from '$lib/components/ui/separator/separator.svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 
 	let roomCode = $state('');
 
-	$inspect({ roomCode });
+	// onMount, if error=invalid_room_code in params, show toast and redirect to /play
+	$effect(() => {
+		const err = $page.url.searchParams.get('error');
+		if (err !== null) {
+			toast.error(err);
+			goto('/play');
+		}
+	});
 
 	function joinRoom() {
-		console.log('Joining room', roomCode);
+		console.log(roomCode);
 		if (roomCode.trim() === '') {
 			toast.error('Please enter a room code');
 			return;
 		}
-		toast.success(`Joining room ${roomCode}`);
-		// navigate(`/play/${roomCode}`);
+		if (roomCode.length !== 6) {
+			toast.error('Invalid room code');
+			return;
+		}
 		goto(`/play/${roomCode}`);
 		// Add logic to join the room
 	}
 
 	function createRoom() {
-		toast.success('Creating a new room');
-		// Add logic to create a new room
+		// generate a random 6-digit room code
+		const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
+		goto(`/play/${roomCode}`);
 	}
 </script>
 
@@ -50,7 +61,13 @@
 			<CardDescription class="text-center">Join or create a multiplayer game</CardDescription>
 		</CardHeader>
 		<CardContent>
-			<div class="space-y-4">
+			<form
+				class="space-y-4"
+				onsubmit={(e) => {
+					e.preventDefault();
+					joinRoom();
+				}}
+			>
 				<div class="space-y-2">
 					<InputOTP.Root
 						maxlength={6}
@@ -78,15 +95,17 @@
 						{/snippet}
 					</InputOTP.Root>
 				</div>
-				<Button class="w-full" onclick={joinRoom}>Join Room</Button>
+				<Button class="w-full" type="submit" disabled={roomCode.length !== 6}>Join Room</Button>
 				<div class="relative flex w-full items-center justify-center">
 					<Separator class="w-full" />
 					<p class="absolute left-1/2 -translate-x-1/2 bg-white px-2 text-center text-xs">OR</p>
 				</div>
-			</div>
+			</form>
 		</CardContent>
 		<CardFooter>
-			<Button variant="outline" class="w-full" onclick={createRoom}>Create New Room</Button>
+			<Button variant="outline" class="w-full" onclick={createRoom} type="button"
+				>Create New Room</Button
+			>
 		</CardFooter>
 	</Card>
 </div>

@@ -1,23 +1,18 @@
 import { PUBLIC_WS_URL } from '$env/static/public';
 import { getContext, onDestroy, onMount, setContext } from 'svelte';
-
+import { toast } from 'svelte-sonner';
 export class GameClientState {
 	sock = $state<WebSocket | null>(null);
+	reconnectingPromise: string | number | undefined = $state();
+	messages = $state<
+		{
+			from: string;
+			message: string;
+		}[]
+	>([]);
 	constructor(wsToken: string) {
 		onMount(() => {
-			// construct a new url with queryParam "token" as wsToken
-			const wsURLQuery = new URL(PUBLIC_WS_URL);
-			wsURLQuery.searchParams.set('token', wsToken);
-			const ws = new WebSocket(wsURLQuery.toString());
-			ws.onclose = () => {
-				this.sock = null;
-			};
-			ws.onopen = () => {
-				this.sock = ws;
-			};
-			ws.onerror = () => {
-				this.sock = null;
-			};
+			this.connect(wsToken);
 		});
 		onDestroy(() => {
 			if (this.sock) {
@@ -25,6 +20,53 @@ export class GameClientState {
 				this.sock = null;
 			}
 		});
+	}
+
+	private connect(wsToken: string) {
+		const wsURLQuery = new URL(PUBLIC_WS_URL);
+		wsURLQuery.searchParams.set('token', wsToken);
+		const ws = new WebSocket(wsURLQuery.toString());
+
+		const promiseToast = toast.promise(
+			new Promise<void>((resolve, reject) => {
+				ws.onopen = () => {
+					this.sock = ws;
+					resolve();
+				};
+				ws.onerror = (err) => {
+					this.sock = null;
+					reject(err);
+				};
+				ws.onclose = () => {
+					this.sock = null;
+					this.reconnect(wsToken);
+				};
+			}),
+			{
+				loading: 'Connecting...',
+				success: 'Connected!',
+				error: 'Connection failed!',
+				position: 'bottom-right'
+			}
+		);
+		this.reconnectingPromise = promiseToast;
+	}
+
+	private reconnect(wsToken: string) {
+		if (!this.reconnectingPromise) {
+			this.reconnectingPromise = toast.promise(
+				new Promise<void>((resolve) => {
+					setTimeout(() => {
+						this.connect(wsToken);
+						resolve();
+					}, 5000); // Attempt to reconnect after 5 seconds
+				}),
+				{
+					loading: 'Reconnecting...',
+					position: 'bottom-right'
+				}
+			);
+		}
 	}
 
 	send(action: string, message?: any) {

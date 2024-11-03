@@ -67,7 +67,7 @@
 
 @layer base {
 	* {
-		@apply border-border;
+		@apply border-border transition-all duration-300;
 	}
 	body {
 		@apply min-h-svh bg-background text-foreground;
