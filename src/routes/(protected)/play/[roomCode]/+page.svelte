@@ -31,22 +31,17 @@
 		START_GAME: 'start-game'
 	} as const;
 
-	//Use $effect.once for initialization
-	$effect(() => {
-		if (!GS.isConnected) return;
-		GS.send(Messages.JOIN_ROOM, roomCode);
-	});
-
 	$effect(() => {
 		if (!GS.socket || !GS.isConnected) return;
+		console.log('Listening for game start');
 		function gameHandler() {
+			GS.socket?.off(ReturnMessages.START_GAME, gameHandler);
 			goto(`/play/${roomCode}/fun`);
 		}
 		GS.socket.on(ReturnMessages.START_GAME, gameHandler);
-	});
-
-	onDestroy(() => {
-		GS.clearRoomData(roomCode);
+		return () => {
+			GS.socket?.off(ReturnMessages.START_GAME, gameHandler);
+		};
 	});
 
 	function toggleReady() {
@@ -79,7 +74,7 @@
 								: 'bg-gray-100'}"
 						>
 							<Avatar>
-								<AvatarImage src="/images/user.png" alt={player.userName} />
+								<!-- <AvatarImage src="/images/user.png" alt={player.userName} /> -->
 								<AvatarFallback>{player.userName[0]}</AvatarFallback>
 							</Avatar>
 							<div class="flex-1">

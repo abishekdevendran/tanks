@@ -55,6 +55,9 @@ io.use((socket, next) => {
 	}
 });
 
+const roomsInSession = new Set<string>();
+const gameStates = new Map();
+
 io.on('connection', (socket) => {
 	console.log('connected: ', socket.data.user);
 	socket.on('disconnecting', (reason) => {
@@ -90,6 +93,14 @@ io.on('connection', (socket) => {
 	socket.on('leave-room', (room) => {
 		console.log('leaving room:', room);
 		socket.leave(room);
+		if (gameStates.has(room)) {
+			const gameState = gameStates.get(room);
+			delete gameState[socket.data.user.id];
+			if (Object.keys(gameState).length === 0) {
+				gameStates.delete(room);
+				roomsInSession.delete(room);
+			}
+		}
 		// send everyone else the user that left
 		socket.to(room).emit('message', { type: 'room-leave', player: socket.data.user });
 	});
@@ -106,7 +117,21 @@ io.on('connection', (socket) => {
 		);
 		const allReady = players.every((player) => player.isReady) && players.length > 1;
 		if (allReady) {
-			io.to(room).emit('message', { type: 'start-game' });
+			const gameState: {
+				[key: string]: {
+					health: number;
+					score: number;
+				};
+			} = {};
+			players.forEach((player) => {
+				gameState[player.id] = {
+					health: 100,
+					score: 0
+				};
+			});
+			gameStates.set(room, gameState);
+			roomsInSession.add(room);
+			io.to(room).emit('start-game');
 		}
 	});
 	socket.on('unready', () => {
@@ -117,6 +142,62 @@ io.on('connection', (socket) => {
 		if (!usersInRoom) return;
 		// broadcast ready update to all users in the room
 		io.to(room).emit('message', { type: 'ready', user: socket.data.user });
+	});
+	socket.on('move', (data) => {
+		const room = Array.from(socket.rooms).find((room) => room !== socket.id);
+		if (!room || !roomsInSession.has(room)) return;
+
+		// Update player position and broadcast to other players
+		const gameState = gameStates.get(room) || {};
+		gameState[socket.data.user.id] = {
+			...gameState[socket.data.user.id],
+			...data,
+			lastUpdate: Date.now()
+		};
+		gameStates.set(room, gameState);
+
+		socket.to(room).emit('player-move', {
+			id: socket.data.user.id,
+			...data
+		});
+	});
+
+	socket.on('shoot', (data) => {
+		const room = Array.from(socket.rooms).find((room) => room !== socket.id);
+		if (!room || !roomsInSession.has(room)) return;
+
+		// Broadcast shot to all players in room
+		socket.to(room).emit('player-shoot', {
+			id: socket.data.user.id,
+			...data
+		});
+	});
+
+	socket.on('hit', (data) => {
+		const room = Array.from(socket.rooms).find((room) => room !== socket.id);
+		if (!room || !roomsInSession.has(room)) return;
+
+		const gameState = gameStates.get(room) || {};
+		const targetPlayer = gameState[data.targetId];
+
+		if (targetPlayer) {
+			targetPlayer.health = (targetPlayer.health || 100) - 10; // 10 damage per hit
+
+			// Broadcast hit to all players
+			io.to(room).emit('player-hit', {
+				targetId: data.targetId,
+				shooterId: socket.data.user.id,
+				health: targetPlayer.health
+			});
+
+			// Check for player elimination
+			if (targetPlayer.health <= 0) {
+				io.to(room).emit('player-eliminated', {
+					targetId: data.targetId,
+					shooterId: socket.data.user.id
+				});
+			}
+		}
 	});
 });
 // setInterval(() => {
